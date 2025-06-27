@@ -1,103 +1,145 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useState } from "react";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+
+import { db } from "../../lib/firebase";
+
+type Contact = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [form, setForm] = useState({ firstName: "", lastName: "", phone: "" });
+  const [editId, setEditId] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "contacts"), (snapshot) => {
+      setContacts(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Contact))
+      );
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddOrUpdate = async () => {
+    if (!form.firstName || !form.lastName || !form.phone) return;
+    if (editId) {
+      const ref = doc(db, "contacts", editId);
+      await updateDoc(ref, form);
+      setEditId(null);
+    } else {
+      await addDoc(collection(db, "contacts"), form);
+    }
+    setForm({ firstName: "", lastName: "", phone: "" });
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this contact?")) {
+      await deleteDoc(doc(db, "contacts", id));
+    }
+  };
+
+  const startEdit = (contact: Contact) => {
+    setForm({
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      phone: contact.phone,
+    });
+    setEditId(contact.id);
+  };
+
+  const handleCancleUpdate = async () => {
+    setForm({ firstName: "", lastName: "", phone: "" });
+    setEditId(null);
+  };
+
+  return (
+
+    <div className="min-h-screen flex text-black">
+      {/* Left Panel */}
+      <div className="w-1/2 bg-white p-6 overflow-y-auto">
+        <h2 className="text-2xl font-bold text-blue-700 mb-4">Contact List</h2>
+        {contacts.map((contact) => (
+          <div
+            key={contact.id}
+            className="border p-4 mb-4 flex justify-between items-center"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div>
+              <p className="text-lg font-semibold">
+                {contact.firstName} {contact.lastName}
+              </p>
+              <p className="text-blue-500">{contact.phone}</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => startEdit(contact)}
+                className="bg-orange-500 text-white px-3 py-1 rounded"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(contact.id)}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Right Panel */}
+      <div className="w-1/2 bg-blue-100 p-6">
+        <h2 className="text-2xl font-bold text-blue-800 mb-4">
+          {editId ? "Edit Contact" : "Add New Contact"}
+        </h2>
+        <input
+          type="text"
+          placeholder="First Name"
+          value={form.firstName}
+          onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+          className="block w-full p-2 mb-3 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Last Name"
+          value={form.lastName}
+          onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+          className="block w-full p-2 mb-3 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Phone Number"
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          className="block w-full p-2 mb-3 border rounded"
+        />
+        <div className=" flex flex-row gap-4">
+          <button
+            onClick={handleAddOrUpdate}
+            className="bg-blue-600 text-white px-4 py-2 rounded"
           >
-            Read our docs
-          </a>
+            {editId ? "Update Contact" : "Add Contact"}
+          </button>
+          {editId ? <button 
+            onClick={handleCancleUpdate}
+            className="bg-gray-500 text-white px-4 py-2 rounded"
+            >
+              Cancel
+            </button> : <></>}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
   );
 }
